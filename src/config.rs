@@ -18,7 +18,7 @@ use lightning::ln::msgs::SocketAddress;
 use lightning::routing::gossip::NodeAlias;
 use lightning::routing::router::RouteParametersConfig;
 use lightning::util::config::{
-	ChannelConfig as LdkChannelConfig, MaxDustHTLCExposure as LdkMaxDustHTLCExposure, UserConfig,
+	ChannelConfig as LdkChannelConfig, ChannelHandshakeConfig, MaxDustHTLCExposure as LdkMaxDustHTLCExposure, UserConfig,
 };
 
 use crate::logger::LogLevel;
@@ -297,6 +297,9 @@ pub struct Config {
 	pub manually_handle_unknown_bolt11_payments: bool,
 	/// The mode used for tracking forwarded payments.
 	pub forwarded_payment_tracking_mode: ForwardedPaymentTrackingMode,
+
+	/// accept_channel.minimum_depth(default = 6)
+	pub minimum_depth: u32,
 }
 
 impl Default for Config {
@@ -316,6 +319,7 @@ impl Default for Config {
 			hrn_config: HumanReadableNamesConfig::default(),
 			manually_handle_unknown_bolt11_payments: false,
 			forwarded_payment_tracking_mode: ForwardedPaymentTrackingMode::default(),
+			minimum_depth: 6,
 		}
 	}
 }
@@ -511,7 +515,13 @@ pub(crate) fn default_user_config(config: &Config) -> UserConfig {
 	// Note that methods such as Node::open_channel and Node::open_announced_channel might override
 	// some of the values set here, e.g. the ChannelHandshakeConfig, meaning these default values
 	// will mostly be relevant for inbound channels.
-	let mut user_config = UserConfig::default();
+	let mut user_config = UserConfig {
+		channel_handshake_config: ChannelHandshakeConfig {
+			minimum_depth: 3,
+			..Default::default()
+		},
+		..Default::default()
+	};
 	user_config.channel_handshake_limits.force_announced_channel_preference = false;
 	user_config.channel_handshake_config.negotiate_scid_privacy = true;
 	user_config.channel_handshake_config.negotiate_anchor_zero_fee_commitments =
