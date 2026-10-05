@@ -147,6 +147,13 @@ pub enum Event {
 		/// from a preimage known only to the recipient.
 		bolt12_invoice: Option<PaidBolt12Invoice>,
 	},
+	/// PaymentPathSuccessful
+	PaymentDone {
+		/// A local identifier used to track the payment.
+		payment_id: PaymentId,
+		/// The hash of the payment.
+		payment_hash: Option<PaymentHash>,
+	},
 	/// A sent payment has failed.
 	PaymentFailed {
 		/// A local identifier used to track the payment.
@@ -328,6 +335,10 @@ impl_writeable_tlv_based_enum!(Event,
 		(3, payment_id, required),
 		(5, payment_preimage, option),
 		(7, bolt12_invoice, option),
+	},
+	(10, PaymentDone) => {
+		(0, payment_hash, option),
+		(3, payment_id, required),
 	},
 	(1, PaymentFailed) => {
 		(0, payment_hash, option),
@@ -1526,7 +1537,20 @@ where
 				};
 			},
 
-			LdkEvent::PaymentPathSuccessful { .. } => {},
+			LdkEvent::PaymentPathSuccessful { payment_id, payment_hash, .. } => {
+				let event = Event::PaymentDone {
+					payment_id,
+					payment_hash,
+				};
+
+				match self.event_queue.add_event(event).await {
+					Ok(_) => return Ok(()),
+					Err(e) => {
+						log_error!(self.logger, "Failed to push to event queue: {}", e);
+						return Err(ReplayEvent());
+					},
+				};
+			},
 			LdkEvent::PaymentPathFailed { .. } => {},
 			LdkEvent::ProbeSuccessful { path, payment_id, .. } => {
 				if let Some(prober) = &self.prober {
